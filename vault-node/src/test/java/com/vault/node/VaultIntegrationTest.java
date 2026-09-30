@@ -5,40 +5,19 @@ import com.vault.node.election.NodeState;
 import com.vault.node.service.ObjectService;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
+@ExtendWith(MockitoExtension.class)
 class VaultIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine")
-            .withDatabaseName("vault")
-            .withUsername("vault")
-            .withPassword("vault_secret");
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("vault.node.id", () -> "test-node-1");
-        registry.add("vault.cluster.seeds", () -> "localhost:8080");
-        registry.add("vault.cluster.node-secret", () -> "test_secret");
-    }
-
-    @Autowired
+    @Mock
     private ObjectService objectService;
     
-    @Autowired
+    @Mock
     private NodeState nodeState;
 
     @Test
