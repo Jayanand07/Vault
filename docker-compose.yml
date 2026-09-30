@@ -1,0 +1,114 @@
+services:
+  vault-node-1:
+    build: .
+    container_name: vault-node-1
+    environment:
+      VAULT_NODE_ID: "11111111-1111-1111-1111-111111111111"
+      VAULT_NODE_ADDRESS: "vault-node-1:8080"
+      VAULT_CLUSTER_SEEDS: "vault-node-1:8080,vault-node-2:8080,vault-node-3:8080"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/vault"
+      VAULT_DATA_DIR: "/data/vault"
+      VAULT_NODE_SECRET: "changeme"
+    ports: ["8081:8080"]
+    volumes: ["vault-data-1:/data/vault"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  vault-node-2:
+    build: .
+    container_name: vault-node-2
+    environment:
+      VAULT_NODE_ID: "22222222-2222-2222-2222-222222222222"
+      VAULT_NODE_ADDRESS: "vault-node-2:8080"
+      VAULT_CLUSTER_SEEDS: "vault-node-1:8080,vault-node-2:8080,vault-node-3:8080"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/vault"
+      VAULT_DATA_DIR: "/data/vault"
+      VAULT_NODE_SECRET: "changeme"
+    ports: ["8082:8080"]
+    volumes: ["vault-data-2:/data/vault"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  vault-node-3:
+    build: .
+    container_name: vault-node-3
+    environment:
+      VAULT_NODE_ID: "33333333-3333-3333-3333-333333333333"
+      VAULT_NODE_ADDRESS: "vault-node-3:8080"
+      VAULT_CLUSTER_SEEDS: "vault-node-1:8080,vault-node-2:8080,vault-node-3:8080"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/vault"
+      VAULT_DATA_DIR: "/data/vault"
+      VAULT_NODE_SECRET: "changeme"
+    ports: ["8083:8080"]
+    volumes: ["vault-data-3:/data/vault"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: vault-postgres
+    environment:
+      POSTGRES_DB: vault
+      POSTGRES_USER: vault
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    ports: ["5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vault"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vault-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: vault-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  vault-data-1:
+  vault-data-2:
+  vault-data-3:
+  postgres-data:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt

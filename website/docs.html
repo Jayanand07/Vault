@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        .docs-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 4rem 5%;
+        }
+        .docs-section {
+            background: var(--surface-color);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--surface-border);
+            border-radius: 12px;
+            padding: 2.5rem;
+            margin-bottom: 3rem;
+        }
+        .docs-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--surface-border);
+            padding-bottom: 0.5rem;
+        }
+        .docs-section h3 {
+            color: #fff;
+            margin: 2rem 0 1rem;
+        }
+        .docs-section p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+        .code-block {
+            background: #000;
+            border: 1px solid var(--surface-border);
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin: 1.5rem 0;
+            color: #fff;
+        }
+        .method {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+        }
+        .method.post { background: #27c93f; color: #000; }
+        .method.get { background: #66fcf1; color: #000; }
+        .method.delete { background: #ff5f56; color: #000; }
+        
+        .api-endpoint {
+            display: flex;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid var(--surface-border);
+            margin-bottom: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">Vault Docs</div>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+        </ul>
+    </nav>
+
+    <div class="docs-container">
+        
+        <div class="docs-section" id="quickstart">
+            <h2>Quickstart Guide</h2>
+            <p>Vault is a highly available distributed storage engine. It runs best in a containerized environment. This guide shows how to spin up a local 3-node cluster.</p>
+            
+            <h3>1. Prerequisites</h3>
+            <p>You must have <a href="https://www.docker.com/products/docker-desktop/" target="_blank" style="color:var(--primary-color)">Docker</a> and Docker Compose installed on your system.</p>
+
+            <h3>2. Launch the Cluster</h3>
+            <p>Navigate to the project root directory and run:</p>
+            <div class="code-block">docker-compose up -d --build</div>
+            <p>This spins up:</p>
+            <ul>
+                <li style="color:var(--text-secondary); margin-left: 1.5rem;">3 Vault Nodes (Ports: 8081, 8082, 8083)</li>
+                <li style="color:var(--text-secondary); margin-left: 1.5rem;">1 PostgreSQL instance (Port: 5432)</li>
+                <li style="color:var(--text-secondary); margin-left: 1.5rem;">Prometheus & Grafana (Port: 3000)</li>
+            </ul>
+
+            <h3>3. Verify Cluster Health</h3>
+            <p>Check the custom health endpoint to ensure the cluster has elected a leader and established quorum:</p>
+            <div class="code-block">curl -s http://localhost:8081/actuator/health</div>
+            <p>You should see <code>"status": "UP"</code> along with cluster topology details.</p>
+        </div>
+
+        <div class="docs-section" id="api">
+            <h2>S3-Compatible API Reference</h2>
+            <p>Vault includes a drop-in S3-compatible layer. You can point the AWS CLI, boto3, or the AWS JS SDK directly at Vault without changing any application logic.</p>
+
+            <h3>Upload an Object</h3>
+            <div class="api-endpoint">
+                <span class="method post">PUT</span>
+                <span>/s3/{bucket}/{key}</span>
+            </div>
+            <p>Vault automatically handles quorum replication in the background.</p>
+            <div class="code-block">aws --endpoint-url http://localhost:8081/s3 \
+  s3 cp local-image.png s3://my-bucket/image.png</div>
+            <p><strong>Note:</strong> Currently, authentication is bypassed on the `/s3/` endpoint to make local development seamless. In production, place Vault behind an Nginx proxy or API Gateway.</p>
+
+            <h3>Download an Object</h3>
+            <div class="api-endpoint">
+                <span class="method get">GET</span>
+                <span>/s3/{bucket}/{key}</span>
+            </div>
+            <p>Streams the object directly from disk. If the local replica is corrupt, Vault performs a quorum read and auto-repairs the local copy in the background.</p>
+            <div class="code-block">aws --endpoint-url http://localhost:8081/s3 \
+  s3 cp s3://my-bucket/image.png downloaded-image.png</div>
+
+            <h3>Delete an Object</h3>
+            <div class="api-endpoint">
+                <span class="method delete">DELETE</span>
+                <span>/s3/{bucket}/{key}</span>
+            </div>
+            <p>Places a cryptographically signed tombstone over the object, marking it for asynchronous garbage collection.</p>
+            <div class="code-block">aws --endpoint-url http://localhost:8081/s3 \
+  s3 rm s3://my-bucket/image.png</div>
+        </div>
+
+        <div class="docs-section" id="architecture">
+            <h2>Postgres-Native Architecture</h2>
+            <p>Vault is engineered for apps that already use PostgreSQL.</p>
+            <br>
+            <ul>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>Relational Integrity:</strong> File metadata lives in the <code>object_meta</code> table in your own database. You can join your app tables with Vault's tables seamlessly.</li>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>Zero-Copy Streaming:</strong> Files stream directly from local NVMe drives to the client, avoiding database bloat and Out-Of-Memory (OOM) failures.</li>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>Raft-inspired Leadership:</strong> Nodes use Postgres for distributed locking. If a node dies, another automatically takes over.</li>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>Self-Healing:</strong> Corrupt files (bit rot) are caught by the SHA-256 validator during read operations. The node instantly requests a healthy copy from a peer and repairs its local disk.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

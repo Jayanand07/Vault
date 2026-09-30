@@ -1,0 +1,41 @@
+{
+  "title": "Vault Cluster Dashboard",
+  "timezone": "browser",
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Vault Operations (Ops/sec)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "rate(vault_writes_total[1m])", "legendFormat": "Writes" },
+        { "expr": "rate(vault_reads_total[1m])", "legendFormat": "Reads" },
+        { "expr": "rate(vault_repairs_total[1m])", "legendFormat": "Repairs" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Replication & Failures",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "rate(vault_replication_failures_total[1m])", "legendFormat": "Replication Failures" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Elections & Leader Changes",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "rate(vault_elections_total[1m])", "legendFormat": "Elections Triggered" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM Memory Used",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes", "legendFormat": "{{instance}} - {{area}}" }
+      ]
+    }
+  ]
+}

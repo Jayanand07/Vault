@@ -1,0 +1,83 @@
+vault:
+  node:
+    id: ${VAULT_NODE_ID:node-1}               # "node-1" — unique per container
+    address: ${VAULT_NODE_ADDRESS:localhost:8080}      # "vault-node-1:8080" — how others reach me
+    data-dir: ${VAULT_DATA_DIR:/tmp/vault-data}        # where files live on disk
+
+  cluster:
+    seeds: ${VAULT_CLUSTER_SEEDS:localhost:8080}       # "vault-node-1:8080,vault-node-2:8080,vault-node-3:8080"
+    node-secret: ${VAULT_NODE_SECRET:changeme}  # shared secret for internal APIs
+
+  replication:
+    timeout-ms: 5000                    # give up on a node after 5 seconds
+    vnodes-per-node: 150                # virtual nodes on the hash ring
+
+  durability-tiers:
+    critical:  { n: 5, w: 3, r: 2 }    # 5 copies, need 3 confirmations
+    standard:  { n: 3, w: 2, r: 1 }    # 3 copies, need 2 confirmations (DEFAULT)
+    temporary: { n: 2, w: 1, r: 1 }    # 2 copies, need 1 confirmation
+
+  election:
+    heartbeat-interval-ms: 1000         # leader says "I'm alive" every 1 second
+    lease-duration-ms: 5000             # leader's lease lasts 5 seconds
+    election-timeout-min-ms: 7000       # follower waits at least 7s before calling election
+    election-timeout-max-ms: 12000      # randomized up to 12s to prevent ties
+
+  ring:
+    refresh-interval-ms: 5000           # check for new/dead nodes every 5 seconds
+
+  repair:
+    scrub-interval-ms: 21600000         # check all local files every 6 hours
+    merkle-sync-interval-ms: 3600000    # compare Merkle trees every 1 hour
+    max-concurrent-repairs: 5
+
+  rebalance:
+    rate-limit-objects-per-sec: 10      # don't overwhelm the network
+    rate-limit-bandwidth-mbps: 50
+
+  gc:
+    tombstone-ttl-hours: 72             # keep delete markers for 3 days
+    failed-version-ttl-hours: 24        # clean up failed writes after 1 day
+    sweep-interval-ms: 3600000          # run GC every hour
+
+  security:
+    api-keys: ${VAULT_API_KEYS:}        # comma-separated client API keys
+    rate-limit-write-per-sec: 100
+    rate-limit-read-per-sec: 500
+
+  debug:
+    enabled: false                      # enables PFD signal injection endpoint (NEVER in prod)
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 128MB              # Safety net: reject uploads > 128MB
+      max-request-size: 130MB           # Slightly larger to allow headers
+  task:
+    scheduling:
+      pool:
+        size: 5                         # CRITICAL: prevents heartbeat starvation
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/vault}
+    username: vault
+    password: ${DB_PASSWORD:vault_secret}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  jpa:
+    hibernate:
+      ddl-auto: validate                # Flyway manages schema, not Hibernate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true

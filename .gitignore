@@ -1,0 +1,11 @@
+target/
+*.class
+.idea/
+*.iml
+.vscode/
+*.log
+data/
+tombstones/
+.env
+apache-maven-3.9.6/
+maven.zip
