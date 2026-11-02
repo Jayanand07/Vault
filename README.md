@@ -33,7 +33,7 @@ graph TD
 2. **Leader Election:** The cluster elects a leader using a lease-based heartbeat mechanism via PostgreSQL. Only the leader initiates replication.
 3. **Quorum (N, W, R):** Uses Tunable Consistency. A write must be acknowledged by `W` nodes to succeed. A read must be verified by `R` nodes. 
 4. **Adaptive Consistency:** Reads automatically scale between `EVENTUAL` and `STRONG` consistency depending on the user-requested Durability Tier (`CRITICAL`, `STANDARD`, `TEMPORARY`).
-5. **Anti-Entropy (Read Repair & Scrubber):** If a corrupted file is detected during a read, it repairs itself transparently. A background scrubber validates files passively.
+5. **Anti-Entropy (Read Repair & Scrubber):** If a corrupted file is detected during a read, it repairs itself transparently. A background scrubber validates files passively. The cluster also auto-recovers replication lag after a node rejoins.
 
 ---
 
@@ -41,7 +41,7 @@ graph TD
 
 ### Prerequisites
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
-- Java 17 (if running manually)
+- Java 17+ (Java 21 recommended for virtual threads support, if running manually)
 
 ### 1. Boot the Cluster
 Vault ships with a complete Docker Compose environment (3 Nodes + 1 Postgres + Prometheus + Grafana).
