@@ -31,6 +31,7 @@ public class ReplicationService {
     private final LocalStorageService localStorageService;
     private final WebClient internalWebClient;
     private final com.vault.node.metrics.VaultMetrics vaultMetrics;
+    private final com.vault.node.repository.ReplicaRepository replicaRepository;
 
     @Value("${vault.cluster.node-secret}")
     private String nodeSecret;
@@ -39,7 +40,7 @@ public class ReplicationService {
         // 1. Which nodes should have this file?
         int n = getReplicaCount(tier);
         int w = getWriteQuorum(tier);
-        List<Node> targets = ring.getTargetNodes(objectId, n);
+        List<Node> targets = ring.getTargetNodes(objectId, n, tier);
 
         log.info("Replicating {} v{} to nodes: {}", objectId, version, targets.stream().map(Node::getAddress).collect(Collectors.toList()));
 
@@ -49,7 +50,18 @@ public class ReplicationService {
                     if (node.getNodeId().equals(nodeRegistryService.getSelfNodeId())) {
                         return CompletableFuture.supplyAsync(() -> {
                             try (InputStream is = Files.newInputStream(tempFile)) {
-                                localStorageService.store(objectId, version, is);
+                                com.vault.common.dto.WriteResult localWrite = localStorageService.store(objectId, version, is);
+                                if (!localWrite.getChecksumSha256().equals(checksum)) {
+                                    log.error("Local store checksum mismatch for {}. Expected: {}, Actual: {}", objectId, checksum, localWrite.getChecksumSha256());
+                                    return false;
+                                }
+                                // Save local replica record so BackgroundScrubber doesn't delete it
+                                com.vault.node.model.Replica localReplica = new com.vault.node.model.Replica();
+                                localReplica.setObjectId(objectId);
+                                localReplica.setVersion(version);
+                                localReplica.setNodeId(nodeRegistryService.getSelfNodeId());
+                                localReplica.setChecksumSha256(checksum);
+                                replicaRepository.save(localReplica);
                                 return true;
                             } catch (Exception e) {
                                 log.error("Failed to store locally", e);
@@ -98,7 +110,7 @@ public class ReplicationService {
     public ReplicationResult replicateTombstone(String objectId, long version, DurabilityTier tier, long term) {
         int n = getReplicaCount(tier);
         int w = getWriteQuorum(tier);
-        List<Node> targets = ring.getTargetNodes(objectId, n);
+        List<Node> targets = ring.getTargetNodes(objectId, n, tier);
 
         log.info("Replicating TOMBSTONE for {} v{} to nodes: {}", objectId, version, targets.stream().map(Node::getAddress).collect(Collectors.toList()));
 
@@ -108,6 +120,12 @@ public class ReplicationService {
                         return CompletableFuture.supplyAsync(() -> {
                             try {
                                 localStorageService.delete(objectId, version);
+                                com.vault.node.model.Replica localTombstone = new com.vault.node.model.Replica();
+                                localTombstone.setObjectId(objectId);
+                                localTombstone.setVersion(version);
+                                localTombstone.setNodeId(nodeRegistryService.getSelfNodeId());
+                                localTombstone.setChecksumSha256("TOMBSTONE");
+                                replicaRepository.save(localTombstone);
                                 return true;
                             } catch (Exception e) {
                                 log.error("Failed to tombstone locally", e);
@@ -115,8 +133,9 @@ public class ReplicationService {
                             }
                         });
                     } else {
+                        String encodedObjectId = org.springframework.web.util.UriUtils.encodePath(objectId, java.nio.charset.StandardCharsets.UTF_8);
                         return internalWebClient.delete()
-                                .uri("http://" + node.getAddress() + "/internal/replicate/" + objectId + "?version=" + version + "&term=" + term)
+                                .uri("http://" + node.getAddress() + "/internal/replicate/" + encodedObjectId + "?version=" + version + "&term=" + term)
                                 .header("X-Vault-Node-Secret", nodeSecret)
                                 .retrieve()
                                 .toBodilessEntity()

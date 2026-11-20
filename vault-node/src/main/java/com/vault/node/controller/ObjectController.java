@@ -98,8 +98,9 @@ public class ObjectController {
                     return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("No leader - retry later");
                 }
                 idempotencyService.completeKey(idempotencyKey, 307, null);
+                String encodedObjectId = org.springframework.web.util.UriUtils.encodePath(objectId, java.nio.charset.StandardCharsets.UTF_8);
                 return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
-                        .location(URI.create("http://" + leaderAddr + "/api/v1/objects/" + objectId))
+                        .location(URI.create("http://" + leaderAddr + "/api/v1/objects/" + encodedObjectId))
                         .header("X-Vault-Leader-Address", leaderAddr)
                         .build();
             }
@@ -124,11 +125,11 @@ public class ObjectController {
 
         } catch (Exception e) {
             log.error("Failed to store object {}", objectId, e);
-            idempotencyService.completeKey(idempotencyKey, 500, Map.of("error", e.getMessage()));
+            idempotencyService.completeKey(idempotencyKey, 500, Map.of("error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
             if (e instanceof com.vault.common.exception.InsufficientQuorumException) {
                 return ResponseEntity.status(507).body(e.getMessage());
             }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to store object");
         }
     }
 
@@ -247,7 +248,8 @@ public class ObjectController {
             @RequestParam(required = false, defaultValue = "") String prefix,
             @RequestParam(required = false, defaultValue = "100") int limit) {
         try {
-            var page = metadataService.listObjects(prefix, limit);
+            int effectiveLimit = Math.min(Math.max(limit, 1), 1000);
+            var page = metadataService.listObjects(prefix, effectiveLimit);
             var results = page.getContent().stream()
                 .map(meta -> Map.of(
                     "objectId", meta.getObjectId(),
@@ -261,7 +263,7 @@ public class ObjectController {
                 "page", page.getNumber()
             ));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to list objects");
         }
     }
 
@@ -276,8 +278,9 @@ public class ObjectController {
                 if (leaderAddr == null) {
                     return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("No leader - retry later");
                 }
+                String encodedObjectId = org.springframework.web.util.UriUtils.encodePath(objectId, java.nio.charset.StandardCharsets.UTF_8);
                 return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
-                        .location(URI.create("http://" + leaderAddr + "/api/v1/objects/" + objectId))
+                        .location(URI.create("http://" + leaderAddr + "/api/v1/objects/" + encodedObjectId))
                         .header("X-Vault-Leader-Address", leaderAddr)
                         .build();
             }

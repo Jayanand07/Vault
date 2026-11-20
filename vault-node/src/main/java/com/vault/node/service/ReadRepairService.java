@@ -36,7 +36,6 @@ public class ReadRepairService {
     private String nodeSecret;
 
     @Async
-    @Transactional
     public void repair(String objectId, long expectedVersion, UUID brokenNodeId) {
         log.info("Starting background read-repair for object {}, version {} on node {}", objectId, expectedVersion, brokenNodeId);
         vaultMetrics.incrementRepairs();
@@ -75,22 +74,44 @@ public class ReadRepairService {
             // 3. Store locally (if we are the broken node, else push to it)
             if (brokenNodeId.equals(nodeRegistryService.getSelfNodeId())) {
                 try (InputStream is = resource.getInputStream()) {
-                    localStorageService.store(objectId, expectedVersion, is);
+                    com.vault.common.dto.WriteResult writeResult = localStorageService.store(objectId, expectedVersion, is);
+                    if (!writeResult.getChecksumSha256().equals(healthyReplica.getChecksumSha256())) {
+                        log.error("Read repair checksum mismatch for {} v{}. Expected: {}, Got: {}",
+                                objectId, expectedVersion, healthyReplica.getChecksumSha256(), writeResult.getChecksumSha256());
+                        return;
+                    }
                 }
 
                 // 4. Update local replica status to HEALTHY
-                replicaRepository.findById(new ReplicaId(objectId, expectedVersion, brokenNodeId))
-                        .ifPresent(r -> {
-                            r.setStatus(ReplicaStatus.HEALTHY);
-                            r.setVerifiedAt(OffsetDateTime.now());
-                            replicaRepository.save(r);
-                            log.info("Successfully repaired {} v{} locally.", objectId, expectedVersion);
+                Replica r = replicaRepository.findById(new ReplicaId(objectId, expectedVersion, brokenNodeId))
+                        .orElseGet(() -> {
+                            Replica newRep = new Replica();
+                            newRep.setObjectId(objectId);
+                            newRep.setVersion(expectedVersion);
+                            newRep.setNodeId(brokenNodeId);
+                            newRep.setChecksumSha256(healthyReplica.getChecksumSha256());
+                            return newRep;
                         });
+                r.setStatus(ReplicaStatus.HEALTHY);
+                r.setVerifiedAt(OffsetDateTime.now());
+                replicaRepository.save(r);
+                log.info("Successfully repaired {} v{} locally.", objectId, expectedVersion);
             } else {
-                // We shouldn't typically be repairing other nodes directly via this method in this setup,
-                // but we could POST to their /internal/replicate endpoint if needed.
-                // For this capstone, read repair is triggered locally when a read fails.
-                log.info("Repair triggered for a remote node, skipping as it will repair itself on read.");
+                Node targetNode = nodeRepository.findById(brokenNodeId).orElse(null);
+                if (targetNode != null) {
+                    internalWebClient.post()
+                            .uri("http://" + targetNode.getAddress() + "/internal/replicate")
+                            .header("X-Vault-Node-Secret", nodeSecret)
+                            .header("X-Vault-Checksum", healthyReplica.getChecksumSha256())
+                            .header("X-Vault-Version", String.valueOf(expectedVersion))
+                            .header("X-Vault-Term", "1")
+                            .header("X-Vault-Object-Id", objectId)
+                            .bodyValue(resource)
+                            .retrieve()
+                            .toBodilessEntity()
+                            .block();
+                    log.info("Successfully pushed replica of {} v{} to remote node {}", objectId, expectedVersion, targetNode.getAddress());
+                }
             }
         } catch (Exception e) {
             log.error("Read repair failed for {} from node {}", objectId, sourceNode.getAddress(), e);

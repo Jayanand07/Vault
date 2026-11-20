@@ -4,6 +4,7 @@ import com.vault.common.util.ChecksumUtil;
 import com.vault.node.election.ElectionService;
 import com.vault.node.election.NodeState;
 import com.vault.node.repository.ReplicaRepository;
+import com.vault.node.security.ObjectIdValidator;
 import com.vault.node.service.LocalStorageService;
 import com.vault.node.service.NodeRegistryService;
 import jakarta.servlet.ReadListener;
@@ -44,6 +45,9 @@ class InternalControllerTest {
     
     @Mock
     private NodeState nodeState;
+
+    @Mock
+    private ObjectIdValidator objectIdValidator;
     
     @Mock
     private HttpServletRequest request;

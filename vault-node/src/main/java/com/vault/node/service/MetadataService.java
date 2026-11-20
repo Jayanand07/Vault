@@ -43,28 +43,28 @@ public class MetadataService {
     @Transactional
     public void commitVersion(String objectId, long version) {
         ObjectMetaId id = new ObjectMetaId(objectId, version);
-        objectMetaRepository.findById(id).ifPresent(meta -> {
-            meta.setStatus(ObjectStatus.ACTIVE);
-            objectMetaRepository.save(meta);
-        });
+        ObjectMeta meta = objectMetaRepository.findById(id)
+                .orElseThrow(() -> new IllegalStateException("ObjectMeta not found for " + objectId + " v" + version));
+        meta.setStatus(ObjectStatus.ACTIVE);
+        objectMetaRepository.save(meta);
     }
 
     @Transactional
     public void commitTombstone(String objectId, long version) {
         ObjectMetaId id = new ObjectMetaId(objectId, version);
-        objectMetaRepository.findById(id).ifPresent(meta -> {
-            meta.setStatus(ObjectStatus.TOMBSTONED);
-            objectMetaRepository.save(meta);
-        });
+        ObjectMeta meta = objectMetaRepository.findById(id)
+                .orElseThrow(() -> new IllegalStateException("ObjectMeta not found for tombstone " + objectId + " v" + version));
+        meta.setStatus(ObjectStatus.TOMBSTONED);
+        objectMetaRepository.save(meta);
     }
 
     @Transactional
     public void rollbackVersion(String objectId, long version) {
         ObjectMetaId id = new ObjectMetaId(objectId, version);
-        objectMetaRepository.findById(id).ifPresent(meta -> {
-            meta.setStatus(ObjectStatus.FAILED);
-            objectMetaRepository.save(meta);
-        });
+        ObjectMeta meta = objectMetaRepository.findById(id)
+                .orElseThrow(() -> new IllegalStateException("ObjectMeta not found for rollback " + objectId + " v" + version));
+        meta.setStatus(ObjectStatus.FAILED);
+        objectMetaRepository.save(meta);
     }
 
     @Transactional(readOnly = true)

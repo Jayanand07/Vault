@@ -44,19 +44,16 @@ public class GarbageCollector {
 
     // Run every 24 hours (86400000 ms), but set lower for demo/capstone purposes (e.g. 2 minutes)
     @Scheduled(fixedDelayString = "${vault.gc.sweep-interval-ms:120000}")
-    @Transactional
     public void sweep() {
         log.info("Starting Garbage Collection sweep...");
 
         OffsetDateTime tombstoneThreshold = OffsetDateTime.now().minus(72, ChronoUnit.HOURS);
         OffsetDateTime failedThreshold = OffsetDateTime.now().minus(24, ChronoUnit.HOURS);
 
-        // 1. & 2. Find and delete old TOMBSTONED and FAILED rows
-        List<ObjectMeta> toDelete = objectMetaRepository.findAll().stream()
-                .filter(m -> 
-                    (m.getStatus() == ObjectStatus.TOMBSTONED && m.getCreatedAt().isBefore(tombstoneThreshold)) ||
-                    (m.getStatus() == ObjectStatus.FAILED && m.getCreatedAt().isBefore(failedThreshold)))
-                .toList();
+        // 1. & 2. Find and delete old TOMBSTONED and FAILED rows using indexed DB query
+        List<ObjectMeta> toDelete = objectMetaRepository.findGcCandidates(
+                ObjectStatus.TOMBSTONED, ObjectStatus.FAILED,
+                tombstoneThreshold, failedThreshold);
 
         if (!toDelete.isEmpty()) {
             for (ObjectMeta meta : toDelete) {
@@ -82,7 +79,17 @@ public class GarbageCollector {
                 // Only delete ObjectMeta if all replica rows have been successfully cleaned
                 long remaining = replicaRepository.findByObjectIdAndVersion(meta.getObjectId(), meta.getVersion()).size();
                 if (remaining == 0) {
-                    objectMetaRepository.delete(meta);
+                    if (meta.getStatus() == ObjectStatus.TOMBSTONED) {
+                        // Also purge older versions of this object so they cannot resurrect
+                        List<ObjectMeta> allVersions = objectMetaRepository.findByObjectId(meta.getObjectId());
+                        for (ObjectMeta oldVer : allVersions) {
+                            if (oldVer.getVersion() <= meta.getVersion()) {
+                                objectMetaRepository.delete(oldVer);
+                            }
+                        }
+                    } else {
+                        objectMetaRepository.delete(meta);
+                    }
                     log.info("GC: Deleted metadata for {} v{} completely.", meta.getObjectId(), meta.getVersion());
                 } else {
                     log.warn("GC: Cannot delete metadata for {} v{} yet, {} replicas still remain.", meta.getObjectId(), meta.getVersion(), remaining);
@@ -92,28 +99,33 @@ public class GarbageCollector {
 
         // 3. Clean .tombstone marker files from disk
         Path tombstonesDir = Paths.get(dataDirStr, "tombstones");
-        try (Stream<Path> stream = Files.walk(tombstonesDir)) {
-            long deletedMarkers = stream.filter(Files::isRegularFile)
-                    .filter(p -> p.toString().endsWith(".tombstone"))
-                    .filter(p -> {
-                        try {
-                            return Files.getLastModifiedTime(p).toInstant()
-                                    .isBefore(tombstoneThreshold.toInstant());
-                        } catch (IOException e) {
-                            return false;
-                        }
-                    })
-                    .peek(p -> {
-                        try {
-                            Files.delete(p);
-                        } catch (IOException ignored) {}
-                    }).count();
-            
-            if (deletedMarkers > 0) {
-                log.info("GC: Deleted {} old .tombstone markers from disk.", deletedMarkers);
+        if (Files.exists(tombstonesDir)) {
+            try (Stream<Path> stream = Files.walk(tombstonesDir)) {
+                List<Path> oldMarkers = stream.filter(Files::isRegularFile)
+                        .filter(p -> p.toString().endsWith(".tombstone"))
+                        .filter(p -> {
+                            try {
+                                return Files.getLastModifiedTime(p).toInstant()
+                                        .isBefore(tombstoneThreshold.toInstant());
+                            } catch (IOException e) {
+                                return false;
+                            }
+                        }).toList();
+                
+                long deletedMarkers = 0;
+                for (Path p : oldMarkers) {
+                    try {
+                        Files.deleteIfExists(p);
+                        deletedMarkers++;
+                    } catch (IOException ignored) {}
+                }
+                
+                if (deletedMarkers > 0) {
+                    log.info("GC: Deleted {} old .tombstone markers from disk.", deletedMarkers);
+                }
+            } catch (IOException e) {
+                log.error("Failed to sweep tombstones directory", e);
             }
-        } catch (IOException e) {
-            log.error("Failed to sweep tombstones directory", e);
         }
 
         log.info("Garbage Collection sweep complete.");

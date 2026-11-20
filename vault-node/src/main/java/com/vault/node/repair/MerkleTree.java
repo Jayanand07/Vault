@@ -43,8 +43,10 @@ public class MerkleTree {
     private String combineHashes(String h1, String h2) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(h1.getBytes());
-            digest.update(h2.getBytes());
+            digest.update((byte) 0x01);
+            digest.update(h1.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            digest.update((byte) 0x02);
+            digest.update(h2.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             byte[] hashBytes = digest.digest();
             
             StringBuilder sb = new StringBuilder();

@@ -22,8 +22,7 @@ public class ElectionService {
     private final com.vault.node.metrics.VaultMetrics vaultMetrics;
 
     private final AtomicLong lastHeartbeatReceived = new AtomicLong(System.currentTimeMillis());
-    private final Random random = new Random();
-    private int currentElectionTimeoutMs = generateTimeout();
+    private volatile int currentElectionTimeoutMs = generateTimeout();
 
     @PostConstruct
     public void init() {
@@ -86,6 +85,6 @@ public class ElectionService {
 
     private int generateTimeout() {
         // 7 to 12 seconds
-        return 7000 + random.nextInt(5000);
+        return 7000 + java.util.concurrent.ThreadLocalRandom.current().nextInt(5000);
     }
 }

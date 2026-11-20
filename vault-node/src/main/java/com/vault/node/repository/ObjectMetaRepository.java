@@ -18,4 +18,13 @@ public interface ObjectMetaRepository extends JpaRepository<ObjectMeta, ObjectMe
     
     @org.springframework.data.jpa.repository.Query("SELECT m FROM ObjectMeta m WHERE m.objectId LIKE CONCAT(:prefix, '%') AND m.version = (SELECT MAX(m2.version) FROM ObjectMeta m2 WHERE m2.objectId = m.objectId) AND m.status = :status")
     org.springframework.data.domain.Page<ObjectMeta> findByObjectIdStartingWithAndStatusOnlyLatest(@org.springframework.data.repository.query.Param("prefix") String prefix, @org.springframework.data.repository.query.Param("status") ObjectStatus status, org.springframework.data.domain.Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT m FROM ObjectMeta m WHERE (m.status = :tombstoned AND m.createdAt < :tombstoneThreshold) OR (m.status = :failed AND m.createdAt < :failedThreshold)")
+    java.util.List<ObjectMeta> findGcCandidates(
+            @org.springframework.data.repository.query.Param("tombstoned") ObjectStatus tombstoned,
+            @org.springframework.data.repository.query.Param("failed") ObjectStatus failed,
+            @org.springframework.data.repository.query.Param("tombstoneThreshold") java.time.OffsetDateTime tombstoneThreshold,
+            @org.springframework.data.repository.query.Param("failedThreshold") java.time.OffsetDateTime failedThreshold);
+
+    java.util.List<ObjectMeta> findByObjectId(String objectId);
 }

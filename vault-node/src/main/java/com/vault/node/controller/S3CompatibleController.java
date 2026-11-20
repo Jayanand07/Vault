@@ -44,7 +44,11 @@ public class S3CompatibleController {
         try {
             // Extract the {key} from the URL since /** captures the rest of the path
             String path = request.getRequestURI();
-            String key = path.substring(("/s3/" + bucket + "/").length());
+            String prefix = "/s3/" + bucket + "/";
+            if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+                return ResponseEntity.badRequest().body("Object key cannot be empty");
+            }
+            String key = path.substring(prefix.length());
             String objectId = bucket + "/" + key;
             
             validator.validateOrThrow(objectId);
@@ -94,8 +98,13 @@ public class S3CompatibleController {
         
         try {
             String path = request.getRequestURI();
-            String key = path.substring(("/s3/" + bucket + "/").length());
+            String prefix = "/s3/" + bucket + "/";
+            if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+                return ResponseEntity.badRequest().body("Object key cannot be empty");
+            }
+            String key = path.substring(prefix.length());
             String objectId = bucket + "/" + key;
+            validator.validateOrThrow(objectId);
             
             // Vault native controller already handles streaming and OOM protection!
             return vaultController.getObject(objectId, response);
@@ -116,8 +125,13 @@ public class S3CompatibleController {
         
         try {
             String path = request.getRequestURI();
-            String key = path.substring(("/s3/" + bucket + "/").length());
+            String prefix = "/s3/" + bucket + "/";
+            if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+                return ResponseEntity.badRequest().body("Object key cannot be empty");
+            }
+            String key = path.substring(prefix.length());
             String objectId = bucket + "/" + key;
+            validator.validateOrThrow(objectId);
             
             ResponseEntity<?> response = vaultController.deleteObject(objectId);
             

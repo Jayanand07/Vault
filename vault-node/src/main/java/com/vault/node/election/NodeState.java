@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
@@ -16,34 +15,34 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class NodeState {
 
+    public record LeaderTerm(UUID leaderId, long term) {}
+
     private final NodeRegistryService nodeRegistryService;
     private final NodeRepository nodeRepository;
 
-    private final AtomicReference<UUID> leaderId = new AtomicReference<>(null);
-    private final AtomicLong currentTerm = new AtomicLong(0);
+    private final AtomicReference<LeaderTerm> leaderTerm = new AtomicReference<>(new LeaderTerm(null, 0L));
 
     public boolean isLeader() {
-        UUID currentLeader = leaderId.get();
+        UUID currentLeader = leaderTerm.get().leaderId();
         return currentLeader != null && currentLeader.equals(nodeRegistryService.getSelfNodeId());
     }
     
     public UUID getLeaderId() {
-        return leaderId.get();
+        return leaderTerm.get().leaderId();
     }
 
     public void setLeaderId(UUID newLeaderId, long newTerm) {
-        if (currentTerm.get() <= newTerm) {
-            UUID oldLeader = leaderId.getAndSet(newLeaderId);
-            currentTerm.set(newTerm);
-            
-            if (oldLeader == null || !oldLeader.equals(newLeaderId)) {
-                log.info("Term {}: Leader changed from {} to {}", newTerm, oldLeader, newLeaderId);
-            }
+        LeaderTerm updated = leaderTerm.accumulateAndGet(
+                new LeaderTerm(newLeaderId, newTerm),
+                (curr, next) -> next.term() >= curr.term() ? next : curr
+        );
+        if (updated.term() == newTerm && (updated.leaderId() == null || updated.leaderId().equals(newLeaderId))) {
+            log.info("Term {}: Leader is {}", newTerm, newLeaderId);
         }
     }
 
     public String getLeaderAddress() {
-        UUID currentLeader = leaderId.get();
+        UUID currentLeader = leaderTerm.get().leaderId();
         if (currentLeader == null) return null;
         
         return nodeRepository.findById(currentLeader)
@@ -52,6 +51,6 @@ public class NodeState {
     }
     
     public long getCurrentTerm() {
-        return currentTerm.get();
+        return leaderTerm.get().term();
     }
 }

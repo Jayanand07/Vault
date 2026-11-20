@@ -193,7 +193,8 @@ public class LocalStorageService {
             java.util.List<Path> files = listAllDataFiles();
             for (Path p : files) {
                 String fileName = p.getFileName().toString();
-                if (fileName.startsWith(objectId.replace("/", "_") + ".v")) {
+                String targetFileName = objectId.replace("/", "_") + ".v" + version + ".dat";
+                if (fileName.equals(targetFileName)) {
                     Files.deleteIfExists(p);
                 }
             }

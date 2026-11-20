@@ -34,6 +34,12 @@ public class BackgroundScrubber {
         List<Path> files = localStorageService.listAllDataFiles();
         log.info("Starting background scrub. Found {} files.", files.size());
 
+        List<Replica> myReplicas = replicaRepository.findByNodeId(nodeRegistryService.getSelfNodeId());
+        java.util.Map<String, Replica> replicaLookup = new java.util.HashMap<>();
+        for (Replica r : myReplicas) {
+            replicaLookup.put(r.getObjectId().replace("/", "_") + ".v" + r.getVersion(), r);
+        }
+
         int checked = 0;
         int corrupt = 0;
         int orphaned = 0;
@@ -55,17 +61,11 @@ public class BackgroundScrubber {
                 // Alternatively, we just read the checksum and query by checking ALL replicas on this node.
                 long version = Long.parseLong(baseName.substring(vIndex + 2));
 
-                // Read file and checksum
-                byte[] data = Files.readAllBytes(file);
-                String actualChecksum = ChecksumUtil.sha256(data);
+                // Read file and checksum using streaming
+                String actualChecksum = ChecksumUtil.sha256File(file);
 
-                // Find replica in DB
-                // Since objectId might have had slashes, let's find all replicas for this node and match by checksum/version
-                List<Replica> myReplicas = replicaRepository.findByNodeId(nodeRegistryService.getSelfNodeId());
-                
-                Optional<Replica> replicaOpt = myReplicas.stream()
-                        .filter(r -> r.getVersion() == version && r.getObjectId().replace("/", "_").equals(objectIdUnderscores))
-                        .findFirst();
+                // Find replica in preloaded map
+                Optional<Replica> replicaOpt = Optional.ofNullable(replicaLookup.get(objectIdUnderscores + ".v" + version));
 
                 if (replicaOpt.isEmpty()) {
                     orphaned++;

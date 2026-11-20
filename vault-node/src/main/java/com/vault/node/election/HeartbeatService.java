@@ -21,14 +21,14 @@ public class HeartbeatService {
     private final NodeRegistryService nodeRegistryService;
     private final NodeState nodeState;
     private final com.vault.node.service.FailurePredictionEngine failurePredictionEngine;
-    private final WebClient internalWebClient = WebClient.builder().build();
+    private final WebClient internalWebClient;
 
     @Value("${vault.cluster.node-secret}")
     private String nodeSecret;
 
     private final java.util.Map<java.util.UUID, Integer> failureCounts = new java.util.concurrent.ConcurrentHashMap<>();
 
-    @Scheduled(fixedRate = 2000)
+    @Scheduled(fixedRateString = "${vault.election.heartbeat-interval-ms:1000}")
     public void sendHeartbeats() {
         if (!nodeState.isLeader()) {
             return; // Only leaders send heartbeats
@@ -84,7 +84,7 @@ public class HeartbeatService {
                                 int failures = failureCounts.getOrDefault(node.getNodeId(), 0) + 1;
                                 failureCounts.put(node.getNodeId(), failures);
                                 log.debug("Failed to send heartbeat to {}: {} (count: {})", node.getAddress(), error.getMessage(), failures);
-                                if (failures == 3) {
+                                if (failures >= 3) {
                                     nodeRegistryService.markNodeSuspect(node.getNodeId());
                                 }
                             }

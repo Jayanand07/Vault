@@ -31,7 +31,7 @@ public class SecurityConfig {
             : Collections.emptyList();
             
         registrationBean.setFilter(new ApiKeyFilter(keys));
-        registrationBean.addUrlPatterns("/api/*");
+        registrationBean.addUrlPatterns("/api/*", "/s3/*");
         registrationBean.setOrder(1); // Execute first
         
         return registrationBean;
@@ -41,7 +41,7 @@ public class SecurityConfig {
     public FilterRegistrationBean<RateLimitFilter> rateLimitFilter() {
         FilterRegistrationBean<RateLimitFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(new RateLimitFilter(rateLimitWrite));
-        registrationBean.addUrlPatterns("/api/*");
+        registrationBean.addUrlPatterns("/api/*", "/s3/*");
         registrationBean.setOrder(2); // Execute after auth
         
         return registrationBean;

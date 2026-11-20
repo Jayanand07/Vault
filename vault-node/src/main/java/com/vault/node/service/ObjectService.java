@@ -10,8 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.io.IOException;
@@ -25,10 +23,10 @@ public class ObjectService {
     private final ReplicationService replicationService;
     private final NodeState nodeState;
 
-    private final ConcurrentHashMap<String, ReentrantLock> objectLocks = new ConcurrentHashMap<>();
+    private final com.google.common.util.concurrent.Striped<java.util.concurrent.locks.Lock> objectLocks = com.google.common.util.concurrent.Striped.lock(256);
 
     public WriteResult put(String objectId, Path tempFile, DurabilityTier tier) throws IOException {
-        ReentrantLock lock = objectLocks.computeIfAbsent(objectId, k -> new ReentrantLock());
+        java.util.concurrent.locks.Lock lock = objectLocks.get(objectId);
         lock.lock();
         try {
             String checksum = ChecksumUtil.sha256File(tempFile);
@@ -53,10 +51,13 @@ public class ObjectService {
                 metadataService.commitVersion(objectId, version);
 
                 return new WriteResult(checksum, fileSize);
-            } catch (InsufficientQuorumException e) {
-                // 3b. Quorum NOT met -> rollback
+            } catch (Exception e) {
+                // 3b. Quorum NOT met or replication failed -> rollback
                 metadataService.rollbackVersion(objectId, version);
-                throw e;
+                if (e instanceof InsufficientQuorumException) {
+                    throw (InsufficientQuorumException) e;
+                }
+                throw new RuntimeException("Replication failed for " + objectId, e);
             }
         } finally {
             lock.unlock();
@@ -64,7 +65,7 @@ public class ObjectService {
     }
     
     public void delete(String objectId) {
-        ReentrantLock lock = objectLocks.computeIfAbsent(objectId, k -> new ReentrantLock());
+        java.util.concurrent.locks.Lock lock = objectLocks.get(objectId);
         lock.lock();
         try {
             long term = nodeState.getCurrentTerm();
@@ -84,10 +85,13 @@ public class ObjectService {
                 
                 // 3. Quorum met -> commit tombstone
                 metadataService.commitTombstone(objectId, version);
-            } catch (InsufficientQuorumException e) {
-                // 3b. Quorum NOT met -> rollback
+            } catch (Exception e) {
+                // 3b. Quorum NOT met or replication failed -> rollback
                 metadataService.rollbackVersion(objectId, version);
-                throw e;
+                if (e instanceof InsufficientQuorumException) {
+                    throw (InsufficientQuorumException) e;
+                }
+                throw new RuntimeException("Tombstone replication failed for " + objectId, e);
             }
         } finally {
             lock.unlock();

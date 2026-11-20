@@ -4,6 +4,7 @@ import com.vault.common.util.ChecksumUtil;
 import com.vault.node.election.ElectionService;
 import com.vault.node.model.Replica;
 import com.vault.node.repository.ReplicaRepository;
+import com.vault.node.security.ObjectIdValidator;
 import com.vault.node.service.LocalStorageService;
 import com.vault.node.service.NodeRegistryService;
 import lombok.RequiredArgsConstructor;
@@ -16,9 +17,11 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
 
 @RestController
 @RequestMapping("/internal")
@@ -31,9 +34,18 @@ public class InternalController {
     private final NodeRegistryService nodeRegistryService;
     private final ElectionService electionService;
     private final com.vault.node.election.NodeState nodeState;
+    private final ObjectIdValidator objectIdValidator;
 
     @Value("${vault.cluster.node-secret}")
     private String nodeSecret;
+
+    private boolean isAuthorized(String secret) {
+        if (secret == null || nodeSecret == null) return false;
+        return MessageDigest.isEqual(
+                nodeSecret.getBytes(StandardCharsets.UTF_8),
+                secret.getBytes(StandardCharsets.UTF_8)
+        );
+    }
 
     @PostMapping("/heartbeat")
     public ResponseEntity<?> receiveHeartbeat(
@@ -41,7 +53,7 @@ public class InternalController {
             @RequestParam java.util.UUID leaderId,
             @RequestHeader("X-Vault-Node-Secret") String secret) {
 
-        if (!nodeSecret.equals(secret)) {
+        if (!isAuthorized(secret)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
@@ -58,9 +70,11 @@ public class InternalController {
             @RequestHeader("X-Vault-Object-Id") String objectId,
             HttpServletRequest request) {
 
-        if (!nodeSecret.equals(secret)) {
+        if (!isAuthorized(secret)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
+        objectIdValidator.validateOrThrow(objectId);
 
         // Fencing: Reject writes from old leaders
         if (term < nodeState.getCurrentTerm()) {
@@ -117,9 +131,11 @@ public class InternalController {
             @RequestParam long version,
             @RequestHeader("X-Vault-Node-Secret") String secret) {
 
-        if (!nodeSecret.equals(secret)) {
+        if (!isAuthorized(secret)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
+        objectIdValidator.validateOrThrow(objectId);
 
         try {
             // Find replica in DB to get checksum
@@ -157,9 +173,11 @@ public class InternalController {
             @RequestParam long term,
             @RequestHeader("X-Vault-Node-Secret") String secret) {
 
-        if (!nodeSecret.equals(secret)) {
+        if (!isAuthorized(secret)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
+        objectIdValidator.validateOrThrow(objectId);
 
         // Fencing: Reject writes from old leaders
         if (term < nodeState.getCurrentTerm()) {
@@ -189,9 +207,11 @@ public class InternalController {
             @RequestParam long version,
             @RequestHeader("X-Vault-Node-Secret") String secret) {
 
-        if (!nodeSecret.equals(secret)) {
+        if (!isAuthorized(secret)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
+        objectIdValidator.validateOrThrow(objectId);
 
         try {
             localStorageService.delete(objectId, version);

@@ -30,7 +30,7 @@ public class NodeRegistryService {
     private String selfAddress;
 
     private UUID selfNodeId;
-    private List<Node> lastKnownRingNodes = null;
+    private volatile List<Node> lastKnownRingNodes = null;
 
     @PostConstruct
     @Transactional
@@ -77,7 +77,7 @@ public class NodeRegistryService {
     
     public List<Node> getActiveNodes() {
         return nodeRepository.findAll().stream()
-                .filter(n -> n.getStatus() == NodeStatus.UP || n.getStatus() == NodeStatus.DEGRADED)
+                .filter(n -> n.getStatus() == NodeStatus.UP || n.getStatus() == NodeStatus.DEGRADED || n.getStatus() == NodeStatus.SUSPECT)
                 .toList();
     }
 
