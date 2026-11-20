@@ -6,7 +6,7 @@ Vault is a production-grade distributed object storage cluster built in Java (Sp
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture 
 
 At a high level, Vault acts as a ring of cooperating nodes. Clients can talk to *any* node, and the node will route requests to the cluster leader or the correct replica owners.
 
