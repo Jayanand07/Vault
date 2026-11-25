@@ -1,0 +1,28 @@
+# Build & Maven
+target/
+*.class
+
+# IDE & OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# Local Runtime Data
+data/
+tombstones/
+
+# Local Secrets (never commit real secrets or .env files)
+secrets/*
+!secrets/db_password.txt.example
+.env
+.env.*
+!.env.example
+
+# Local Build Tooling
+apache-maven-3.9.6/
+maven.zip
+

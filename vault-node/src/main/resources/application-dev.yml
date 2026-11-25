@@ -1,0 +1,16 @@
+# Explicit local development profile (SPRING_PROFILES_ACTIVE=dev).
+# Do NOT enable in shared, staging, or production environments.
+vault:
+  cluster:
+    node-secret: ${VAULT_NODE_SECRET:dev-only-node-secret}
+  security:
+    api-keys: ${VAULT_API_KEYS:vault-dev-key}
+
+spring:
+  datasource:
+    password: ${DB_PASSWORD:vault-dev-db-pass}
+
+management:
+  endpoint:
+    health:
+      show-details: always

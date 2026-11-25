@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        .docs-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 4rem 5%;
+        }
+        .docs-section {
+            background: var(--surface-color);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--surface-border);
+            border-radius: 12px;
+            padding: 2.5rem;
+            margin-bottom: 3rem;
+        }
+        .docs-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--surface-border);
+            padding-bottom: 0.5rem;
+        }
+        .docs-section h3 {
+            color: #fff;
+            margin: 2rem 0 1rem;
+        }
+        .docs-section p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+        .code-block {
+            background: #000;
+            border: 1px solid var(--surface-border);
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin: 1.5rem 0;
+            color: #fff;
+        }
+        .method {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+        }
+        .method.post { background: #27c93f; color: #000; }
+        .method.get { background: #66fcf1; color: #000; }
+        .method.delete { background: #ff5f56; color: #000; }
+        
+        .api-endpoint {
+            display: flex;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+            padding: 0.75rem;
+            border-radius: 6px;
+            border: 1px solid var(--surface-border);
+            margin-bottom: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">Vault Docs</div>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="console.html" style="color: var(--primary-color); font-weight: 600;">S3 Console</a></li>
+        </ul>
+    </nav>
+
+    <div class="docs-container">
+        
+        <div class="docs-section" id="quickstart">
+            <h2>Quickstart Guide</h2>
+            <p>Vault is a highly available distributed storage engine. It runs best in a containerized environment. This guide shows how to spin up a local 3-node cluster.</p>
+            
+            <h3>1. Prerequisites</h3>
+            <p>You must have <a href="https://www.docker.com/products/docker-desktop/" target="_blank" style="color:var(--primary-color)">Docker</a> and Docker Compose installed on your system.</p>
+
+            <h3>2. Launch the Cluster</h3>
+            <p>Navigate to the project root directory and run:</p>
+            <div class="code-block">docker-compose up -d --build</div>
+            <p>This spins up:</p>
+            <ul>
+                <li style="color:var(--text-secondary); margin-left: 1.5rem;">3 Vault Nodes (Ports: 8081, 8082, 8083)</li>
+                <li style="color:var(--text-secondary); margin-left: 1.5rem;">1 PostgreSQL instance (Port: 5432)</li>
+                <li style="color:var(--text-secondary); margin-left: 1.5rem;">Prometheus & Grafana (Port: 3000)</li>
+            </ul>
+
+            <h3>3. Verify Cluster Health</h3>
+            <p>Check the custom health endpoint to ensure the cluster has elected a leader and established quorum:</p>
+            <div class="code-block">curl -s http://localhost:8081/actuator/health</div>
+            <p>You should see <code>"status": "UP"</code> along with cluster topology details.</p>
+        </div>
+
+        <div class="docs-section" id="api">
+            <h2>S3-Compatible API Reference (Experimental)</h2>
+            <p>Vault includes an experimental S3-style path adapter for testing alongside standard native REST endpoints. AWS SigV4 is not implemented; clients must supply <code>X-API-Key</code>.</p>
+
+            <h3>Upload an Object</h3>
+            <div class="api-endpoint">
+                <span class="method post">PUT</span>
+                <span>/s3/{bucket}/{key}</span>
+            </div>
+            <p>Accepts raw binary payloads up to 128 MiB (multipart forms return HTTP 415) and replicates via cluster quorum.</p>
+            <div class="code-block">curl -X PUT http://localhost:8081/s3/my-bucket/folder/image.png \
+  -H "X-API-Key: $VAULT_API_KEY" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @local-image.png</div>
+            <p><strong>Note:</strong> All <code>/api/*</code> and <code>/s3/*</code> routes enforce <code>X-API-Key</code> authentication configured via <code>VAULT_API_KEYS</code>.</p>
+
+            <h3>Download an Object</h3>
+            <div class="api-endpoint">
+                <span class="method get">GET</span>
+                <span>/s3/{bucket}/{key}</span>
+            </div>
+            <p>Streams the verified object from storage.</p>
+            <div class="code-block">curl -H "X-API-Key: $VAULT_API_KEY" \
+  http://localhost:8081/s3/my-bucket/folder/image.png -o downloaded-image.png</div>
+
+            <h3>Delete an Object</h3>
+            <div class="api-endpoint">
+                <span class="method delete">DELETE</span>
+                <span>/s3/{bucket}/{key}</span>
+            </div>
+            <p>Creates a tombstone version marked for asynchronous garbage collection.</p>
+            <div class="code-block">curl -X DELETE -H "X-API-Key: $VAULT_API_KEY" \
+  http://localhost:8081/s3/my-bucket/folder/image.png</div>
+        </div>
+
+        <div class="docs-section" id="architecture">
+            <h2>Postgres-Native Architecture</h2>
+            <p>Vault is engineered for apps that already use PostgreSQL.</p>
+            <br>
+            <ul>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>Relational Integrity:</strong> File metadata lives in the <code>objects</code> and <code>replicas</code> tables in your database. You can join your app tables with Vault's tables cleanly.</li>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>Bounded Streaming:</strong> Files stream to local disk via collision-free <code>SHA-256(key)</code> object locators in bounded 8 KB chunks without buffering entire payloads in heap.</li>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>PostgreSQL-Coordinated Leader Lease:</strong> Nodes use Postgres <code>election_state</code> leases and monotonic terms for leader coordination.</li>
+                <li style="color:var(--text-secondary); margin-bottom: 0.8rem;"><strong>Self-Healing:</strong> Background scrubbers verify SHA-256 checksums against metadata and trigger repair from peer replicas.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

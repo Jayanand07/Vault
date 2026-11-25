@@ -1,0 +1,30 @@
+name: Vault CI
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Run Unit, MVC, and PostgreSQL Testcontainers Suites
+      run: mvn -B test --file pom.xml
+
+    - name: Package Application Artifacts
+      run: mvn -B package -DskipTests --file pom.xml
+
+    - name: Docker Build and 3-Node Compose Smoke Test
+      run: bash scripts/smoke_compose.sh

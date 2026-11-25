@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault - Distributed Object Storage</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">Vault</div>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#quickstart">Quickstart</a></li>
+            <li><a href="console.html" style="color: var(--primary-color); font-weight: 600;">S3 Console</a></li>
+            <li><a href="docs.html" class="btn primary-btn-sm">Documentation</a></li>
+        </ul>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-content">
+            <h1 class="glow-text">The Postgres-Native<br>Object Store</h1>
+            <p>A distributed object store that keeps queryable metadata and leases in PostgreSQL and verified binary payloads on local disk.</p>
+            <div class="hero-buttons">
+                <a href="console.html" class="btn primary-btn">Open S3 Console</a>
+                <a href="#quickstart" class="btn secondary-btn">Deploy Now</a>
+                <a href="docs.html" class="btn secondary-btn">Read the Docs</a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="cube-container">
+                <div class="cube">
+                    <div class="face front"></div>
+                    <div class="face back"></div>
+                    <div class="face right"></div>
+                    <div class="face left"></div>
+                    <div class="face top"></div>
+                    <div class="face bottom"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features-section">
+        <h2 class="section-title">Production-Grade Infrastructure</h2>
+        <div class="features-grid">
+            <div class="feature-card glass">
+                <div class="icon">🐘</div>
+                <h3>Postgres-Backed</h3>
+                <p>Vault uses your existing PostgreSQL database to store file metadata and manage cluster elections. Absolute referential integrity.</p>
+            </div>
+            <div class="feature-card glass">
+                <div class="icon">🔌</div>
+                <h3>REST + S3 Adapter</h3>
+                <p>Native REST APIs plus an experimental <code>/s3/{bucket}/{key}</code> endpoint protected by <code>X-API-Key</code> (SigV4 deferred).</p>
+            </div>
+            <div class="feature-card glass">
+                <div class="icon">🛡️</div>
+                <h3>Idempotent & Fenced</h3>
+                <p>Atomic idempotency replay and PostgreSQL-coordinated leader lease fencing protect concurrent writes and retries.</p>
+            </div>
+            <div class="feature-card glass">
+                <div class="icon">💍</div>
+                <h3>Consistent Hashing</h3>
+                <p>Data is horizontally distributed across the cluster using a 32-bit consistent hash ring, ensuring even load distribution.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="architecture" class="architecture-section">
+        <h2 class="section-title">How It Works</h2>
+        <div class="arch-content glass">
+            <p>Vault was built to solve a massive pain point: developers bloating their Postgres databases with <code>bytea</code> columns or struggling with complex AWS IAM permissions.</p>
+            <p>Vault stores object metadata, versions, and SHA-256 checksums in <strong>your</strong> PostgreSQL database so you can run SQL <code>JOIN</code>s against application tables while streaming binaries safely to local disks with pre-verified reads.</p>
+            <div class="arch-terminal">
+                <div class="terminal-header">
+                    <span class="dot red"></span>
+                    <span class="dot yellow"></span>
+                    <span class="dot green"></span>
+                </div>
+                <div class="terminal-body">
+<pre><code><span class="comment"># Stream raw binary payload via Vault REST (with X-API-Key)</span>
+curl -X PUT -L "http://localhost:8081/api/v1/objects?key=users/avatar.jpg" \
+  -H "X-API-Key: $VAULT_API_KEY" -H "Content-Type: application/octet-stream" \
+  --data-binary @avatar.jpg
+
+<span class="success">{"objectId":"users/avatar.jpg","checksum":"...","size":...}</span></code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="quickstart" class="quickstart-section">
+        <h2 class="section-title">Get Started in 60 Seconds</h2>
+        <div class="quickstart-steps">
+            <div class="step glass">
+                <h3>1. Clone & Spin Up</h3>
+                <p>Deploy a 3-node local cluster instantly with Docker Compose.</p>
+                <code>docker-compose up -d --build</code>
+            </div>
+            <div class="step glass">
+                <h3>2. Verify Cluster</h3>
+                <p>Check the custom health indicators to ensure quorum is met.</p>
+                <code>curl localhost:8081/actuator/health</code>
+            </div>
+            <div class="step glass">
+                <h3>3. Monitor</h3>
+                <p>Open Grafana on port 3000 to view realtime metrics (reads, writes, repairs).</p>
+                <a href="http://localhost:3000" class="btn primary-btn-sm" style="margin-top: 1rem;">Open Grafana</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 Vault Distributed Storage. Built for the modern web.</p>
+    </footer>
+</body>
+</html>
