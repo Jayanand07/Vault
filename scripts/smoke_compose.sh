@@ -6,8 +6,18 @@ cd "$PROJECT_ROOT"
 
 CREATED_ENV=0
 CREATED_SECRET=0
+LOG_DIR="${PROJECT_ROOT}/vault-node/target/smoke-logs"
 
 cleanup() {
+  EXIT_CODE=$?
+  if [ "$EXIT_CODE" -ne 0 ]; then
+    mkdir -p "$LOG_DIR"
+    docker compose ps -a > "$LOG_DIR/compose-ps.txt" 2>&1 || true
+    docker compose logs --no-color > "$LOG_DIR/compose.log" 2>&1 || true
+    echo "=== Compose Failure Snapshot (saved to ${LOG_DIR}) ==="
+    cat "$LOG_DIR/compose-ps.txt" || true
+    tail -n 200 "$LOG_DIR/compose.log" || true
+  fi
   docker compose down -v --remove-orphans >/dev/null 2>&1 || true
   if [ "$CREATED_ENV" -eq 1 ]; then
     rm -f .env
@@ -28,7 +38,7 @@ rand_token() {
 
 mkdir -p secrets
 if [ ! -f secrets/db_password.txt ]; then
-  rand_token > secrets/db_password.txt
+  printf '%s' "$(rand_token)" > secrets/db_password.txt
   CREATED_SECRET=1
 fi
 
@@ -55,6 +65,10 @@ echo "[2/6] Waiting for all 3 nodes to pass /actuator/health..."
 for port in 8081 8082 8083; do
   ready=0
   for _ in $(seq 1 45); do
+    if docker compose ps --status exited --services | grep -qE '^(postgres|vault-node-1|vault-node-2|vault-node-3)$'; then
+      echo "ERROR: A core Compose service exited prematurely while waiting for port ${port}"
+      exit 1
+    fi
     if curl -fsS "http://localhost:${port}/actuator/health" | grep -q '"status":"UP"'; then
       ready=1
       break
@@ -63,7 +77,6 @@ for port in 8081 8082 8083; do
   done
   if [ "$ready" -ne 1 ]; then
     echo "ERROR: Node on port ${port} failed to become healthy"
-    docker compose logs
     exit 1
   fi
 done

@@ -32,10 +32,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -49,11 +45,10 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Real PostgreSQL 15 integration test backed by Testcontainers + Flyway V1..V6 + Hibernate ddl-auto=validate.
- * Enabled automatically wherever Docker is available (including GitHub Actions CI).
+ * Real PostgreSQL 15 integration test backed by Flyway V1..V7 + Hibernate ddl-auto=validate.
+ * Fails loudly when vault.postgres-it.required=true (or CI=true) if no Postgres/Docker is available.
  */
-@Testcontainers(disabledWithoutDocker = true)
-@EnabledIf("isDockerAvailable")
+@EnabledIf("com.vault.node.PostgresTestTarget#shouldExecute")
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
@@ -68,29 +63,20 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(initializers = TestEphemeralCredentials.class)
 class VaultPostgresIntegrationTest {
 
-    static boolean isDockerAvailable() {
-        try {
-            return DockerClientFactory.instance().isDockerAvailable();
-        } catch (Throwable t) {
-            return false;
-        }
-    }
-
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:15-alpine")
-            .withDatabaseName("vault")
-            .withUsername("vault")
-            .withPassword(TestEphemeralCredentials.dbCredential());
-
+    private static PostgresTestTarget POSTGRES;
     private static Path tempDataDir;
 
     @BeforeAll
     static void initDataDir() throws Exception {
+        POSTGRES = PostgresTestTarget.startOrFailIfRequired("vault");
         tempDataDir = Files.createTempDirectory("vault-pg-it-");
     }
 
     @AfterAll
     static void cleanupDataDir() throws Exception {
+        if (POSTGRES != null) {
+            POSTGRES.close();
+        }
         if (tempDataDir != null && Files.exists(tempDataDir)) {
             try (var s = Files.walk(tempDataDir)) {
                 s.sorted((a, b) -> b.compareTo(a)).forEach(p -> {
@@ -249,6 +235,10 @@ class VaultPostgresIntegrationTest {
                 new HttpEntity<>(auth),
                 Void.class);
         assertEquals(HttpStatus.NO_CONTENT, delResp.getStatusCode());
+
+        var tombMeta = objectMetaRepository.findById(new ObjectMetaId("pg/folder/item.bin", 2L)).orElseThrow();
+        assertEquals("TOMBSTONE", tombMeta.getChecksumSha256(),
+                "V7 VARCHAR(64) schema must persist exact unpadded TOMBSTONE marker");
 
         jdbcTemplate.update(
                 "UPDATE objects SET created_at = NOW() - INTERVAL '100 hours' WHERE object_id = 'pg/folder/item.bin'",

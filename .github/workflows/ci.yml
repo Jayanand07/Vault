@@ -20,11 +20,32 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
-    - name: Run Unit, MVC, and PostgreSQL Testcontainers Suites
-      run: mvn -B test --file pom.xml
+    - name: Run Unit, MVC, and Mandatory PostgreSQL Integration Suites
+      run: |
+        mvn -B test -Dvault.postgres-it.required=true --file pom.xml
+        for suite in VaultPostgresIntegrationTest PostgresSchemaMigrationIntegrationTest; do
+          report="vault-node/target/surefire-reports/TEST-com.vault.node.${suite}.xml"
+          test -f "$report" || { echo "Missing report: $report"; exit 1; }
+          if grep -qE 'skipped="[1-9]' "$report" || grep -q 'tests="0"' "$report"; then
+            echo "ERROR: Mandatory PostgreSQL suite $suite did not execute cleanly:"
+            cat "$report"
+            exit 1
+          fi
+        done
 
     - name: Package Application Artifacts
       run: mvn -B package -DskipTests --file pom.xml
 
     - name: Docker Build and 3-Node Compose Smoke Test
       run: bash scripts/smoke_compose.sh
+
+    - name: Publish Surefire and Compose Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ci-failure-logs
+        path: |
+          vault-common/target/surefire-reports/**
+          vault-node/target/surefire-reports/**
+          vault-node/target/smoke-logs/**
+        if-no-files-found: ignore

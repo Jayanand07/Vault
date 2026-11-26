@@ -182,7 +182,7 @@ curl -H "X-API-Key: $VAULT_API_KEY" "http://localhost:8081/api/v1/objects?key=re
 
 | Tool | Command | Description |
 | :--- | :--- | :--- |
-| **Maven Unit & Integration** | `mvn -B test` | Runs unit/MVC/H2 regression suites plus `VaultPostgresIntegrationTest` (real Postgres 15 + Flyway `V1..V6` via Testcontainers when Docker is available). |
+| **Maven Unit & Integration** | `mvn -B test` | Runs unit/MVC/H2 regression suites plus `VaultPostgresIntegrationTest` and `PostgresSchemaMigrationIntegrationTest` (real Postgres 15 + Flyway `V1..V7`, mandatory in CI via `-Dvault.postgres-it.required=true`). |
 | **3-Node Compose Smoke** | `bash scripts/smoke_compose.sh` | Boots 3 Vault nodes + PostgreSQL 15 via Docker Compose and verifies PUT, idempotency replay, GET, `/inspect`, container disk bit-rot fallback, and DELETE -> 404. |
 | **Benchmark Suite** | `python scripts/benchmark.py -c 4 -n 100 -s 64` | Measures throughput (ops/sec, MB/s) and latency percentiles (p50, p95, p99). |
 | **Chaos Harness** | `python scripts/chaos_test.py` | Injects 1-bit corruption on disk and asserts transparent read-repair. |
