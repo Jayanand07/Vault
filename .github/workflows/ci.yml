@@ -20,6 +20,25 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
+    - name: Start Ephemeral PostgreSQL 15 Test Container
+      run: |
+        PG_PW="$(openssl rand -hex 16)"
+        docker run -d --name ci-pg-it -p 127.0.0.1:5433:5432 \
+          -e POSTGRES_DB=vault \
+          -e POSTGRES_USER=vault \
+          -e POSTGRES_PASSWORD="$PG_PW" \
+          postgres:15-alpine
+        for _ in $(seq 1 30); do
+          if docker exec ci-pg-it pg_isready -U vault -d vault >/dev/null 2>&1; then
+            break
+          fi
+          sleep 1
+        done
+        docker exec ci-pg-it pg_isready -U vault -d vault
+        echo "VAULT_IT_POSTGRES_URL=jdbc:postgresql://127.0.0.1:5433/vault" >> "$GITHUB_ENV"
+        echo "VAULT_IT_POSTGRES_USER=vault" >> "$GITHUB_ENV"
+        echo "VAULT_IT_POSTGRES_PASSWORD=$PG_PW" >> "$GITHUB_ENV"
+
     - name: Run Unit, MVC, and Mandatory PostgreSQL Integration Suites
       run: |
         mvn -B test -Dvault.postgres-it.required=true --file pom.xml
@@ -32,6 +51,10 @@ jobs:
             exit 1
           fi
         done
+
+    - name: Stop Ephemeral PostgreSQL 15 Test Container
+      if: always()
+      run: docker rm -f ci-pg-it >/dev/null 2>&1 || true
 
     - name: Package Application Artifacts
       run: mvn -B package -DskipTests --file pom.xml
