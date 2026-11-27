@@ -1,5 +1,7 @@
 # Vault 🛡️
 > **The Postgres-Native, S3-Compatible Distributed Object Storage Engine**
+>
+> **Keywords:** durability · quorum · replication · self-healing
 
 [![Vault CI](https://github.com/Jayanand07/Vault/actions/workflows/ci.yml/badge.svg)](https://github.com/Jayanand07/Vault/actions/workflows/ci.yml)
 [![Java](https://img.shields.io/badge/Java-17%20%7C%2021-ED8B00?style=flat&logo=openjdk&logoColor=white)](https://openjdk.org/)
